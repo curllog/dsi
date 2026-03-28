@@ -126,11 +126,13 @@ If the user also has a system-level dotnet, `~/.dotnet` should come **first** in
 All version discovery comes from Microsoft's public JSON API:
 
 **Release index** (all channels):
+
 ```
 https://builds.dotnet.microsoft.com/dotnet/release-metadata/releases-index.json
 ```
 
 Returns:
+
 ```json
 {
   "releases-index": [
@@ -148,11 +150,14 @@ Returns:
 ```
 
 **Per-channel releases** (all patches for a major.minor):
+
 ```
+
 https://builds.dotnet.microsoft.com/dotnet/release-metadata/9.0/releases.json
 ```
 
 Returns detailed info per release including:
+
 - All SDK versions in that release
 - Download URLs per platform (linux-x64, linux-arm64, osx-x64, osx-arm64, win-x64, etc.)
 - SHA512 checksums
@@ -161,6 +166,7 @@ Returns detailed info per release including:
 ### SDK Download URLs
 
 SDK tarballs follow a predictable pattern:
+
 ```
 https://builds.dotnet.microsoft.com/dotnet/Sdk/{version}/dotnet-sdk-{version}-{os}-{arch}.tar.gz
 ```
@@ -290,10 +296,6 @@ $ dsi install --latest
 
 # Skip confirmation
 $ dsi install 9.0 -y
-
-# Cross-platform download (e.g., for deployment to ARM server)
-$ dsi install 9.0 --rid linux-arm64 --download-only
-Downloaded: ./dotnet-sdk-9.0.203-linux-arm64.tar.gz
 
 # Already installed
 $ dsi install 9.0.203
@@ -496,31 +498,6 @@ $ dotnet --list-sdks
 # global.json or "latest wins" determines which is active.
 ```
 
-### Use Case 7: Working inside WSL
-
-The user develops in WSL2 on Windows. They have .NET installed on both the Windows side (via Visual Studio) and need .NET inside WSL for CLI builds.
-
-```bash
-# Check environment
-$ dsi info
-Platform:       linux-x64 (glibc)
-WSL:            WSL2 (distro: Ubuntu)
-Windows dotnet: /mnt/c/Program Files/dotnet/dotnet (v8.0.8)
-                ⚠  This is separate from your WSL Linux .NET
-
-# dsi correctly downloads the Linux build, not Windows
-$ dsi install 9.0
-Downloading dotnet-sdk-9.0.203-linux-x64.tar.gz...
-Installed SDK 9.0.203
-
-# The Windows .NET at /mnt/c/... is untouched
-# WSL Linux .NET lives at ~/.dotnet/
-$ dotnet --version
-9.0.203
-```
-
-dsi never downloads the Windows SDK when running inside WSL — it detects Linux and acts accordingly. The Windows-side .NET installation is completely independent.
-
 ---
 
 ## Internal Modules
@@ -559,187 +536,12 @@ dsi never downloads the Windows SDK when running inside WSL — it detects Linux
 
 ### 4. Platform Detection
 
-**Responsibility**: detect OS, architecture, and runtime environment for download URL resolution.
+**Responsibility**: detect OS and architecture for download URL resolution.
 
-This is a critical module. The wrong detection means downloading an SDK that won't run.
-
-#### Detection Sources
-
-| Property | How to detect in Rust | Notes |
-|---|---|---|
-| OS | `std::env::consts::OS` → `linux`, `macos`, `windows` | Compile-time constant |
-| Architecture | `std::env::consts::ARCH` → `x86_64`, `aarch64`, `arm`, `x86` | Compile-time constant |
-| C library (Linux) | Runtime: check ELF interpreter or `ldd --version` | musl vs glibc |
-| WSL | Runtime: check env vars and `/proc/version` | Affects install path guidance |
-
-#### OS + Architecture → Microsoft RID Mapping
-
-| `std::env::consts` | Libc | Microsoft RID | Archive format |
-|---|---|---|---|
-| `linux` + `x86_64` | glibc | `linux-x64` | `.tar.gz` |
-| `linux` + `x86_64` | musl | `linux-musl-x64` | `.tar.gz` |
-| `linux` + `aarch64` | glibc | `linux-arm64` | `.tar.gz` |
-| `linux` + `aarch64` | musl | `linux-musl-arm64` | `.tar.gz` |
-| `linux` + `arm` | glibc | `linux-arm` | `.tar.gz` |
-| `macos` + `x86_64` | — | `osx-x64` | `.tar.gz` |
-| `macos` + `aarch64` | — | `osx-arm64` | `.tar.gz` |
-| `windows` + `x86_64` | — | `win-x64` | `.zip` |
-| `windows` + `x86` | — | `win-x86` | `.zip` |
-| `windows` + `aarch64` | — | `win-arm64` | `.zip` |
-
-#### musl vs glibc Detection (Linux only)
-
-Most Linux distros use glibc. Alpine, Void Linux (musl variant), and some embedded/container distros use musl. .NET ships separate musl builds because the libc is not interchangeable.
-
-Detection strategy (in order of reliability):
-
-1. **Check the ELF interpreter of the current binary**: read `/proc/self/exe` ELF headers. If the interpreter path contains `musl` (e.g., `/lib/ld-musl-x86_64.so.1`), it's musl.
-2. **Check `ldd --version` output**: glibc prints version info to stdout; musl prints to stderr and includes "musl".
-3. **Check for `/lib/ld-musl-*.so.*`**: if this file exists, the system has musl.
-
-```rust
-fn detect_libc() -> Libc {
-    // Method 1: check if ldd mentions musl
-    if let Ok(output) = Command::new("ldd").arg("--version").output() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        if stderr.contains("musl") {
-            return Libc::Musl;
-        }
-    }
-    // Method 2: check for musl dynamic linker
-    if Path::new("/lib/ld-musl-x86_64.so.1").exists()
-        || Path::new("/lib/ld-musl-aarch64.so.1").exists()
-    {
-        return Libc::Musl;
-    }
-    Libc::Glibc
-}
-```
-
-#### WSL Detection (Windows Subsystem for Linux)
-
-WSL is a special case. Rust's `std::env::consts::OS` returns `"linux"` inside WSL because it IS a Linux environment. The Linux SDK build is correct for running inside WSL — so **dsi should download the Linux SDK, not the Windows SDK**. This is the right default behavior.
-
-However, dsi should still detect WSL for two reasons:
-
-1. **Install path guidance**: in WSL, `~/.dotnet` is on the Linux filesystem. If the user also has .NET on the Windows side (`/mnt/c/Program Files/dotnet/`), dsi should detect and warn about potential confusion.
-2. **Info command**: `dsi info` should report WSL status so the user understands their environment.
-
-Detection strategy:
-
-```rust
-#[derive(Debug)]
-enum WslVersion {
-    None,
-    Wsl1,
-    Wsl2,
-}
-
-fn detect_wsl() -> WslVersion {
-    // Method 1: WSL_DISTRO_NAME is set by WSL
-    if std::env::var("WSL_DISTRO_NAME").is_ok() {
-        // Method 2: distinguish WSL1 vs WSL2
-        if let Ok(version) = std::fs::read_to_string("/proc/version") {
-            if version.contains("microsoft-standard-WSL2")
-                || version.contains("WSL2")
-            {
-                return WslVersion::Wsl2;
-            }
-            if version.to_lowercase().contains("microsoft") {
-                return WslVersion::Wsl1;
-            }
-        }
-        // WSL_DISTRO_NAME set but can't determine version
-        return WslVersion::Wsl2; // safe default, WSL2 is far more common
-    }
-
-    // Method 3: fallback — check /proc/version for Microsoft string
-    if let Ok(version) = std::fs::read_to_string("/proc/version") {
-        if version.to_lowercase().contains("microsoft") {
-            return WslVersion::Wsl2;
-        }
-    }
-
-    WslVersion::None
-}
-```
-
-**WSL-specific behaviors:**
-
-| Scenario | dsi behavior |
-|---|---|
-| Running inside WSL | Download `linux-x64` (or `linux-arm64`). This is correct. |
-| Windows dotnet found at `/mnt/c/Program Files/dotnet/` | `dsi info` warns: "Windows .NET detected at /mnt/c/... — this is separate from your WSL Linux .NET." |
-| User explicitly wants Windows SDK | `dsi install 9.0 --rid win-x64` — manual override for cross-download |
-| WSL1 specific | Warn that WSL1 has known limitations with .NET; recommend WSL2 |
-
-#### `--rid` Override Flag
-
-For cross-download scenarios (downloading an SDK for a different platform):
-
-```bash
-# On a linux-x64 machine, download for linux-arm64 (for deployment to ARM server)
-$ dsi install 9.0 --rid linux-arm64
-
-# Inside WSL, download the Windows SDK (for some reason)
-$ dsi install 9.0 --rid win-x64
-
-# On macOS arm64, download x64 for Rosetta testing
-$ dsi install 9.0 --rid osx-x64
-```
-
-When `--rid` is used, dsi downloads to a separate directory to avoid polluting the native SDK root:
-
-```
-~/.dotnet/                          # native SDKs (auto-detected platform)
-~/.dotnet-cross/linux-arm64/        # cross-downloaded SDKs
-```
-
-Or alternatively, just download the archive to the current directory without extracting:
-
-```bash
-$ dsi install 9.0 --rid linux-arm64 --download-only
-Downloaded: ./dotnet-sdk-9.0.203-linux-arm64.tar.gz
-```
-
-This is simpler and avoids managing a second dotnet root.
-
-#### Updated `dsi info` Output with Platform Details
-
-```bash
-$ dsi info
-
-dsi version:        0.1.0
-Platform:           linux-x64 (glibc)
-Architecture:       x86_64
-OS:                 Linux (CachyOS)
-WSL:                no
-Install location:   /home/mo/.dotnet
-Dotnet muxer:       /home/mo/.dotnet/dotnet (v9.0.3)
-System dotnet:      /usr/share/dotnet/dotnet (v8.0.8)
-PATH precedence:    ~/.dotnet takes priority ✓
-Shell:              zsh
-Profile:            ~/.zshrc (dsi PATH configured ✓)
-```
-
-Inside WSL:
-
-```bash
-$ dsi info
-
-dsi version:        0.1.0
-Platform:           linux-x64 (glibc)
-Architecture:       x86_64
-OS:                 Linux (Ubuntu 22.04)
-WSL:                WSL2 (distro: Ubuntu)
-Install location:   /home/mo/.dotnet
-Dotnet muxer:       /home/mo/.dotnet/dotnet (v9.0.3)
-Windows dotnet:     /mnt/c/Program Files/dotnet/dotnet (v8.0.8)
-                    ⚠  This is separate from your WSL Linux .NET
-PATH precedence:    ~/.dotnet takes priority ✓
-Shell:              bash
-Profile:            ~/.bashrc (dsi PATH configured ✓)
-```
+- Detects OS: `linux`, `osx`, `win`
+- Detects architecture: `x64`, `arm64`, `arm`, `x86`
+- Maps to Microsoft's naming convention: `linux-x64`, `osx-arm64`, `win-x64`, etc.
+- On Linux, detects musl vs glibc for Alpine/musl-based distros (`linux-musl-x64`).
 
 ### 5. Shell Integration
 
@@ -765,7 +567,6 @@ Profile:            ~/.bashrc (dsi PATH configured ✓)
 | `sha2` | SHA512 checksum verification |
 | `indicatif` | Progress bars and spinners |
 | `dirs` | Cross-platform home directory detection |
-| `os_info` | OS distribution name detection (CachyOS, Ubuntu, Alpine, etc.) |
 | `semver` | Version parsing and comparison (adapted for .NET's scheme) |
 | `colored` | Terminal color output |
 
@@ -774,16 +575,21 @@ Profile:            ~/.bashrc (dsi PATH configured ✓)
 ## Edge Cases & Considerations
 
 ### Muxer version conflicts
+
 When extracting a newer SDK, the `dotnet` muxer binary and `host/fxr/` files get overwritten with the newer version. This is by design — .NET's muxer is backward compatible. A newer muxer can run older SDKs. However, extracting an **older** SDK over a **newer** muxer is safe too — the extraction will not downgrade the muxer because the older tarball's muxer has a lower version, and dsi should skip overwriting the muxer if the existing one is newer.
 
 ### Partial extraction recovery
+
 If extraction is interrupted (power loss, Ctrl+C), the SDK directory may be incomplete. dsi should detect this on next run (e.g., check for a sentinel file or validate expected directory structure) and offer to re-install.
 
 ### Disk space
+
 Each SDK is roughly 200-400 MB extracted. dsi should show the download size before confirming install, and `dsi prune` should report freed space.
 
 ### Offline usage
+
 `dsi ls` works fully offline (filesystem scan). `dsi ls-remote` and `dsi install` require network access. Cached release index data allows `ls-remote` to work with stale data if the network is unavailable (with a warning).
 
 ### Permission errors
+
 If `~/.dotnet/` was previously created by a root process or system installer, the user may not have write permission. dsi should detect this early and provide a clear error message rather than failing mid-extraction.
