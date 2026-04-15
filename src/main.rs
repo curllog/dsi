@@ -13,8 +13,10 @@ struct Cli {
 enum Commands {
     /// Show environment and platform details
     Info,
+    ///List all installed SDKs
 
     /// List available SDK versions from Microsoft's releases API
+    Ls,
     LsRemote(commands::ls_remote::LsRemoteArgs),
 }
 #[tokio::main]
@@ -24,6 +26,7 @@ async fn main() {
         Commands::Info => commands::info::run(),
 
         Commands::LsRemote(args) => commands::ls_remote::run(args).await,
+        Commands::Ls => commands::ls::run().await,
     };
 
     if let Err(e) = result {
@@ -34,4 +37,3 @@ async fn main() {
         std::process::exit(1);
     }
 }
-

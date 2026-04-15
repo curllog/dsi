@@ -2,21 +2,20 @@ use std::path::Path;
 use std::process::Command;
 
 #[derive(Debug, Clone)]
-pub struct Platform{
+pub struct Platform {
     pub os: Os,
-    pub arch:Arch,
-    pub libc:Libc,
-    pub wsl:WslStatus
-
+    pub arch: Arch,
+    pub libc: Libc,
+    pub wsl: WslStatus,
 }
 #[derive(Debug, Clone, PartialEq)]
-pub enum Os{
+pub enum Os {
     Linux,
     MacOS,
     Windows,
 }
 #[derive(Debug, Clone, PartialEq)]
-pub enum Arch{
+pub enum Arch {
     X64,
     Arm64,
     Arm,
@@ -24,47 +23,46 @@ pub enum Arch{
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Libc{
+pub enum Libc {
     Glibc,
     Musl,
     None, // macOS + Windows
 }
 #[derive(Debug, Clone, PartialEq)]
-pub enum WslStatus{
+pub enum WslStatus {
     None,
     Wsl1,
     Wsl2,
 }
 
 impl Platform {
-    
-    pub fn detect()-> Self{
+    pub fn detect() -> Self {
         Platform {
-             os: detect_os(),
-             arch: detect_arch(),
-             libc: detect_libc(),
-             wsl: detect_wsl()
+            os: detect_os(),
+            arch: detect_arch(),
+            libc: detect_libc(),
+            wsl: detect_wsl(),
         }
     }
 
     pub fn rid(&self) -> String {
         let os_part = match (&self.os, &self.libc) {
             (Os::Linux, Libc::Musl) => "linux-musl",
-            (Os::Linux, _)          => "linux",
-            (Os::MacOS, _)          => "osx",
-            (Os::Windows, _)        => "win",
+            (Os::Linux, _) => "linux",
+            (Os::MacOS, _) => "osx",
+            (Os::Windows, _) => "win",
         };
 
         let arch_part = match self.arch {
-            Arch::X64   => "x64",
+            Arch::X64 => "x64",
             Arch::Arm64 => "arm64",
-            Arch::Arm   => "arm",
-            Arch::X86   => "x86",
+            Arch::Arm => "arm",
+            Arch::X86 => "x86",
         };
 
         format!("{}-{}", os_part, arch_part)
     }
-    pub fn display_name(&self) ->String{
+    pub fn display_name(&self) -> String {
         let libc_str = match self.libc {
             Libc::Glibc => " (glibc)",
             Libc::Musl => " (musl)",
@@ -79,21 +77,21 @@ impl Platform {
 /// Detect OS using Rust's compile-time constant.
 fn detect_os() -> Os {
     match std::env::consts::OS {
-        "linux"   => Os::Linux,
-        "macos"   => Os::MacOS,
+        "linux" => Os::Linux,
+        "macos" => Os::MacOS,
         "windows" => Os::Windows,
-        other     => panic!("Unsupported OS: {}", other),
+        other => panic!("Unsupported OS: {}", other),
     }
 }
 
 /// Detect CPU architecture using Rust's compile-time constant.
 fn detect_arch() -> Arch {
     match std::env::consts::ARCH {
-        "x86_64"  => Arch::X64,
+        "x86_64" => Arch::X64,
         "aarch64" => Arch::Arm64,
-        "arm"     => Arch::Arm,
-        "x86"     => Arch::X86,
-        other     => panic!("Unsupported architecture: {}", other),
+        "arm" => Arch::Arm,
+        "x86" => Arch::X86,
+        other => panic!("Unsupported architecture: {}", other),
     }
 }
 
@@ -153,7 +151,7 @@ fn detect_wsl() -> WslStatus {
 
     // Method 2: fallback — check /proc/version even without env var
     if let Ok(version) = std::fs::read_to_string("/proc/version") {
-        if version.to_lowercase().contains("microsoft") {
+        if version.to_lowercase().contains("microsoft") == true {
             return WslStatus::Wsl2;
         }
     }
