@@ -1,6 +1,9 @@
 use clap::Parser;
+
+use crate::commands::{ls::LsArgs, ls_remote::LsRemoteArgs};
 mod api;
 mod commands;
+mod paths;
 mod platform;
 /// A fast CLI tool for installing and managing .NET SDK versions.
 #[derive(Parser)]
@@ -16,7 +19,7 @@ enum Commands {
     ///List all installed SDKs
 
     /// List available SDK versions from Microsoft's releases API
-    Ls,
+    Ls(LsArgs),
     LsRemote(commands::ls_remote::LsRemoteArgs),
 }
 #[tokio::main]
@@ -26,7 +29,7 @@ async fn main() {
         Commands::Info => commands::info::run(),
 
         Commands::LsRemote(args) => commands::ls_remote::run(args).await,
-        Commands::Ls => commands::ls::run().await,
+        Commands::Ls(args) => commands::ls::run(args).await,
     };
 
     if let Err(e) = result {

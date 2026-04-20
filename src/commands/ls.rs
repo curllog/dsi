@@ -1,6 +1,53 @@
+use crate::paths::DsiPaths;
 use anyhow::Result as AnyResult;
+use clap::Parser;
 
-pub async fn run() -> AnyResult<()> {
-    println!("test");
+#[derive(Parser)]
+pub struct LsArgs;
+
+pub async fn run(_args: LsArgs) -> AnyResult<()> {
+    let paths = DsiPaths::resolve()?;
+    let sdks = paths.installed_sdks()?;
+
+    if sdks.is_empty() {
+        println!();
+        println!("  No .NET SDKs installed.");
+        println!("  Run `dsi install --lts to install one.");
+        println!();
+        return Ok(());
+    }
+    println!();
+    println!("  Installed SDKs (in {}):", paths.sdk_dir.display());
+    println!();
+    println!("  {:<18} {}", "SDK Version", "Channel");
+    println!("  {}", "─".repeat(32));
+
+    for sdk in &sdks {
+        let channel = extract_channel(sdk);
+        println!("  {:<18} {}", sdk, channel);
+    }
+
+    if paths.has_dotnet() {
+        if let Ok(output) = std::process::Command::new(&paths.dotnet_bin)
+            .arg("--version")
+            .output()
+        {
+            if output.status.success() {
+                let active = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                println!("  Active SDK: {}", active);
+            }
+        }
+    }
+
+    println!();
     Ok(())
+}
+
+fn extract_channel(version: &str) -> String {
+    let parts: Vec<&str> = version.split('.').collect();
+    if parts.len() >= 2 {
+        format!("{}.{}", parts[0], parts[1])
+    } else {
+        version.to_string()
+    }
 }

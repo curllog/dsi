@@ -18,7 +18,7 @@ pub async fn run(args: LsRemoteArgs) -> AnyResult<()> {
     println!();
     println!(
         "  {:<10} {:<44} {:<10} {:<14} {}",
-        "Channel", "Latest SDK", "Type", "Status", "EOL Date"
+        "Channel", "Latest SDK", "Type", "Status", r#"EOL Date"#
     );
     println!("  {}", "─".repeat(100));
 
