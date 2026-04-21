@@ -12,7 +12,6 @@ pub struct Platform {
 pub enum Os {
     Linux,
     MacOS,
-    Windows,
 }
 #[derive(Debug, Clone, PartialEq)]
 pub enum Arch {
@@ -26,7 +25,7 @@ pub enum Arch {
 pub enum Libc {
     Glibc,
     Musl,
-    None, // macOS + Windows
+    None, // macOS
 }
 #[derive(Debug, Clone, PartialEq)]
 pub enum WslStatus {
@@ -50,7 +49,6 @@ impl Platform {
             (Os::Linux, Libc::Musl) => "linux-musl",
             (Os::Linux, _) => "linux",
             (Os::MacOS, _) => "osx",
-            (Os::Windows, _) => "win",
         };
 
         let arch_part = match self.arch {
@@ -79,7 +77,6 @@ fn detect_os() -> Os {
     match std::env::consts::OS {
         "linux" => Os::Linux,
         "macos" => Os::MacOS,
-        "windows" => Os::Windows,
         other => panic!("Unsupported OS: {}", other),
     }
 }

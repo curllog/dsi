@@ -2,5 +2,6 @@
 //
 //this file declares which files inside src/commands are part of `commands` module
 pub mod info;
+pub mod install;
 pub mod ls;
 pub mod ls_remote;

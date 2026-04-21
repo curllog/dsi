@@ -369,6 +369,7 @@ dependencies = [
  "colored",
  "dirs",
  "flate2",
+ "futures-util",
  "hex",
  "indicatif",
  "reqwest",

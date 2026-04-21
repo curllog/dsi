@@ -1,6 +1,6 @@
 # dsi — .NET SDK Installer
 
-A fast, cross-platform CLI tool built in Rust for discovering, installing, and managing .NET SDK versions. It does not replace or interfere with the `dotnet` CLI — it complements it by solving the one pain point that remains: getting SDKs onto your machine.
+A fast CLI tool built in Rust for discovering, installing, and managing .NET SDK versions on Unix-family systems (Linux, macOS, WSL). It does not replace or interfere with the `dotnet` CLI — it complements it by solving the one pain point that remains: getting SDKs onto your machine.
 
 ---
 
@@ -11,6 +11,26 @@ A fast, cross-platform CLI tool built in Rust for discovering, installing, and m
 - **Stay out of the way**: no shims, no PATH manipulation, no custom config files for version switching.
 - **User-space only**: install to `~/.dotnet` to avoid conflicts with system package managers.
 - **Zero runtime dependencies**: ships as a single static Rust binary.
+
+---
+
+## Supported Platforms
+
+dsi supports Unix-family systems only:
+
+| Platform | Notes |
+|---|---|
+| Linux | glibc and musl (Alpine) distributions |
+| macOS | Intel and Apple Silicon |
+| WSL | Windows Subsystem for Linux — treated as Linux |
+
+Native Windows is **not** supported. Windows users should run dsi inside WSL. Rationale:
+
+- .NET developers on native Windows typically use Visual Studio, which manages its own SDK installations.
+- Windows requires a separate archive format (`.zip` instead of `.tar.gz`) and different install paths, doubling the surface area of the tool.
+- Scoping to Unix-family keeps the codebase simple and aligned with the "do one thing well" philosophy.
+
+The crate will fail to compile on non-supported targets via `compile_error!`, producing a clear message rather than a silent/broken binary.
 
 ---
 
@@ -66,7 +86,7 @@ A fast, cross-platform CLI tool built in Rust for discovering, installing, and m
 | Responsibility | Description |
 |---|---|
 | **Discover** | Query Microsoft's release metadata API to list all available SDK versions with their support status, release dates, and EOL dates. |
-| **Install** | Download SDK tarballs/zips from Microsoft's CDN, verify SHA512 checksums, and extract into `~/.dotnet/`. |
+| **Install** | Download SDK tarballs from Microsoft's CDN, verify SHA512 checksums, and extract into `~/.dotnet/`. |
 | **List** | Show locally installed SDK versions with enriched metadata (LTS/STS/EOL status, whether updates are available). |
 | **Uninstall** | Remove specific SDK versions from `~/.dotnet/sdk/` and clean up orphaned shared runtimes. |
 | **Prune** | Remove outdated patch versions, keeping only the latest patch per feature band. |
@@ -76,12 +96,13 @@ A fast, cross-platform CLI tool built in Rust for discovering, installing, and m
 | Not our concern | Why |
 |---|---|
 | Version switching / selection | `dotnet` CLI + `hostfxr` + `global.json` already handle this natively. |
-| PATH manipulation | User adds `~/.dotnet` to PATH once during setup. Done. |
+| PATH manipulation (post-setup) | User adds `~/.dotnet` to PATH once during setup. Done. |
 | Shims or proxies | No interception of `dotnet` commands. |
 | global.json management | User creates these manually or via `dotnet new globaljson`. |
 | Runtime-only installs | Scope is SDK management. SDKs bundle their matching runtimes. |
 | .NET Framework (4.x) | Windows-only system component. Out of scope. |
-| System-level installation | We never write to `/usr/share/dotnet`, `/usr/lib/dotnet`, or `C:\Program Files\dotnet`. |
+| System-level installation | We never write to `/usr/share/dotnet` or `/usr/lib/dotnet`. |
+| Native Windows support | See "Supported Platforms" above. Use WSL. |
 
 ---
 
@@ -93,7 +114,7 @@ dsi always installs SDKs to the **user-level dotnet root**:
 |---|---|---|
 | Linux | `~/.dotnet/` | Default for `dotnet-install.sh`, avoids conflict with apt/dnf/pacman |
 | macOS | `~/.dotnet/` | Avoids conflict with Homebrew's `/usr/local/share/dotnet/` |
-| Windows | `%LOCALAPPDATA%\Microsoft\dotnet\` | Standard user-level location, avoids conflict with VS installer at `%ProgramFiles%` |
+| WSL | `~/.dotnet/` | Same as Linux |
 
 ### Why user-level, not system-level
 
@@ -107,15 +128,15 @@ User-level installation (`~/.dotnet/`) avoids all of these. The `dotnet` muxer a
 
 ### PATH setup
 
-The user must ensure `~/.dotnet` is on their `PATH`. dsi provides a `setup` command to assist:
+The user must ensure `~/.dotnet` is on their `PATH`. The `install.sh` script that ships with dsi handles this automatically:
 
 ```bash
-# dsi adds this to the appropriate shell profile
+# Added to the appropriate shell profile
 export DOTNET_ROOT="$HOME/.dotnet"
 export PATH="$HOME/.dotnet:$HOME/.dotnet/tools:$PATH"
 ```
 
-If the user also has a system-level dotnet, `~/.dotnet` should come **first** in PATH so user-managed SDKs take precedence. dsi should detect this and warn during setup.
+If the user also has a system-level dotnet, `~/.dotnet` should come **first** in PATH so user-managed SDKs take precedence. The install script detects this and warns during setup.
 
 ---
 
@@ -152,14 +173,13 @@ Returns:
 **Per-channel releases** (all patches for a major.minor):
 
 ```
-
 https://builds.dotnet.microsoft.com/dotnet/release-metadata/9.0/releases.json
 ```
 
 Returns detailed info per release including:
 
 - All SDK versions in that release
-- Download URLs per platform (linux-x64, linux-arm64, osx-x64, osx-arm64, win-x64, etc.)
+- Download URLs per platform (linux-x64, linux-arm64, osx-x64, osx-arm64, linux-musl-x64, etc.)
 - SHA512 checksums
 - Runtime versions bundled with each SDK
 
@@ -213,24 +233,6 @@ dsi does not maintain its own metadata directory or database. The filesystem IS 
 
 ### Commands
 
-#### `dsi setup`
-
-First-time setup. Detects shell, adds PATH entries to profile.
-
-```bash
-$ dsi setup
-
-Detected shell: zsh
-Added to ~/.zshrc:
-  export DOTNET_ROOT="$HOME/.dotnet"
-  export PATH="$HOME/.dotnet:$HOME/.dotnet/tools:$PATH"
-
-⚠  System dotnet found at /usr/share/dotnet/dotnet
-   Your PATH is configured so ~/.dotnet takes precedence.
-
-Restart your shell or run: source ~/.zshrc
-```
-
 #### `dsi ls-remote`
 
 List all available SDK versions from the releases API.
@@ -246,24 +248,9 @@ Channel   Latest SDK   Release Type   Support Phase   EOL Date
 7.0       7.0.410      STS            eol             2024-05-14
 6.0       6.0.428      LTS            eol             2024-11-12
 
-# Show all patches for a specific channel
-$ dsi ls-remote 9.0
-
-SDK Version   Release Date   Runtime    Security
-──────────────────────────────────────────────────
-9.0.203       2025-03-11     9.0.3      yes
-9.0.202       2025-02-11     9.0.2      yes
-9.0.200       2025-01-14     9.0.1      yes
-9.0.104       2025-03-11     9.0.3      yes
-9.0.103       2025-02-11     9.0.2      yes
-9.0.100       2024-11-12     9.0.0      no
-...
-
 # Filter by support type
 $ dsi ls-remote --lts
-$ dsi ls-remote --sts
 $ dsi ls-remote --include-eol
-$ dsi ls-remote --include-preview
 ```
 
 #### `dsi install`
@@ -294,9 +281,6 @@ $ dsi install --lts
 # Install latest of any supported channel
 $ dsi install --latest
 
-# Skip confirmation
-$ dsi install 9.0 -y
-
 # Already installed
 $ dsi install 9.0.203
 SDK 9.0.203 is already installed.
@@ -321,6 +305,22 @@ Active SDK: 9.0.203 (no global.json found, using latest)
 ```
 
 The "Active SDK" line is determined by running `dotnet --version` — dsi doesn't resolve this itself.
+
+#### `dsi update`
+
+Update installed SDKs to their latest patch version within each channel.
+
+```bash
+$ dsi update
+
+Checking for updates...
+  8.0.300 → 8.0.404  (available)
+  9.0.100 → 9.0.203  (available)
+
+Install updates? [Y/n] y
+Downloaded and installed 8.0.404 ✓
+Downloaded and installed 9.0.203 ✓
+```
 
 #### `dsi uninstall`
 
@@ -365,13 +365,37 @@ Show environment info for debugging.
 $ dsi info
 
 dsi version:        0.1.0
-Platform:           linux-x64
+Platform:           linux-x64 (glibc)
+Architecture:       x86_64
+OS:                 Linux
+WSL:                WSL2
 Install location:   /home/mo/.dotnet
-Dotnet muxer:       /home/mo/.dotnet/dotnet (v9.0.3)
-System dotnet:      /usr/share/dotnet/dotnet (v8.0.8)
-PATH precedence:    ~/.dotnet takes priority ✓
-Shell:              zsh
-Profile:            ~/.zshrc (dsi PATH configured ✓)
+Dotnet muxer:       /home/mo/.dotnet/dotnet
+```
+
+#### `dsi selfupdate`
+
+Update dsi itself to the latest release.
+
+```bash
+$ dsi selfupdate
+Checking for updates...
+Current version: 0.1.0
+Latest version:  0.2.0
+Downloading... ✓
+Installed dsi 0.2.0
+```
+
+#### `dsi selfuninstall`
+
+Remove dsi from the system. Does not touch installed SDKs.
+
+```bash
+$ dsi selfuninstall
+This will remove dsi from ~/.local/bin/dsi.
+SDKs in ~/.dotnet/ will NOT be removed.
+Continue? [y/N] y
+Removed dsi ✓
 ```
 
 ---
@@ -383,25 +407,24 @@ Profile:            ~/.zshrc (dsi PATH configured ✓)
 A developer sets up a new Linux workstation and needs .NET for development.
 
 ```bash
-# 1. Install dsi (single binary, curl or package manager)
+# 1. Install dsi (single command, runs install.sh)
 curl -fsSL https://dsi.dev/install.sh | sh
 
-# 2. Set up PATH
-dsi setup
-
-# 3. See what's available
+# 2. See what's available
 dsi ls-remote --lts
 
-# 4. Install what they need
+# 3. Install what they need
 dsi install --lts
 dsi install 9.0
 
-# 5. Verify
+# 4. Verify
 dotnet --list-sdks
 ```
 
+The `install.sh` script places the dsi binary in `~/.local/bin/` and configures PATH for all detected shells (bash, zsh, fish, PowerShell, nushell).
+
 **Before dsi**: visit website → find download → download tarball → extract → edit .bashrc → source.
-**After dsi**: three commands.
+**After dsi**: two commands.
 
 ### Use Case 2: Working on a project that requires an older SDK
 
@@ -429,11 +452,7 @@ SDK Version   Channel   Type   Status        Update Available
 9.0.100       9.0       STS    ✓ outdated    → 9.0.203
 8.0.300       8.0       LTS    ✓ outdated    → 8.0.404
 
-$ dsi install 9.0
-Installed SDK 9.0.203
-
-$ dsi install 8.0
-Installed SDK 8.0.404
+$ dsi update
 
 $ dsi prune
 Removed 9.0.100 and 8.0.300. Freed 890 MB.
@@ -442,13 +461,13 @@ Removed 9.0.100 and 8.0.300. Freed 890 MB.
 ### Use Case 4: CI/CD pipeline
 
 ```yaml
-# GitHub Actions example
+# GitHub Actions example (Linux runner)
 steps:
   - name: Install dsi
     run: curl -fsSL https://dsi.dev/install.sh | sh
 
   - name: Install required SDK
-    run: dsi install 9.0 -y
+    run: dsi install 9.0
 
   - name: Build
     run: dotnet build
@@ -459,7 +478,7 @@ Lighter alternative to `actions/setup-dotnet` for simple cases.
 ### Use Case 5: Exploring a preview release
 
 ```bash
-$ dsi ls-remote --include-preview
+$ dsi ls-remote --include-eol
 
 Channel   Latest SDK        Release Type   Support Phase
 ──────────────────────────────────────────────────────────
@@ -498,6 +517,17 @@ $ dotnet --list-sdks
 # global.json or "latest wins" determines which is active.
 ```
 
+### Use Case 7: Windows user on WSL
+
+A Windows developer who prefers WSL2 for Linux-style tooling uses dsi there.
+
+```bash
+# Inside WSL2 Ubuntu
+$ curl -fsSL https://dsi.dev/install.sh | sh
+$ dsi install --lts
+# Installs into WSL's ~/.dotnet, isolated from Windows host.
+```
+
 ---
 
 ## Internal Modules
@@ -506,23 +536,20 @@ $ dotnet --list-sdks
 
 **Responsibility**: fetch and parse Microsoft's release metadata.
 
-- Fetches `releases-index.json` once and caches it locally (with TTL, e.g., 1 hour).
+- Fetches `releases-index.json` on demand.
 - Fetches per-channel `releases.json` on demand.
 - Resolves "9.0" → latest SDK version in that channel.
 - Resolves "--lts" → latest LTS channel → latest SDK.
 - Detects current OS and architecture for download URL selection.
 
-**Cache location**: `~/.dotnet/.dsi-cache/` (inside dotnet root, or `$XDG_CACHE_HOME/dsi/`).
-
 ### 2. SDK Downloader & Verifier
 
 **Responsibility**: download SDK archives and verify integrity.
 
-- Downloads `.tar.gz` (Linux/macOS) or `.zip` (Windows) from Microsoft's CDN.
+- Downloads `.tar.gz` from Microsoft's CDN.
 - Shows progress bar with download speed and ETA.
 - Verifies SHA512 checksum against the value from the releases JSON.
 - Aborts and cleans up on checksum mismatch.
-- Supports resumable downloads (HTTP Range headers) for large files.
 
 ### 3. SDK Manager (Filesystem Operations)
 
@@ -538,19 +565,21 @@ $ dotnet --list-sdks
 
 **Responsibility**: detect OS and architecture for download URL resolution.
 
-- Detects OS: `linux`, `osx`, `win`
+- Detects OS: `linux`, `osx`
 - Detects architecture: `x64`, `arm64`, `arm`, `x86`
-- Maps to Microsoft's naming convention: `linux-x64`, `osx-arm64`, `win-x64`, etc.
+- Maps to Microsoft's naming convention: `linux-x64`, `osx-arm64`, etc.
 - On Linux, detects musl vs glibc for Alpine/musl-based distros (`linux-musl-x64`).
+- Detects WSL status (WSL1, WSL2, or none) for informational purposes in `dsi info`.
 
-### 5. Shell Integration
+### 5. Shell Integration (via `install.sh`)
 
-**Responsibility**: first-time PATH setup via `dsi setup`.
+**Responsibility**: initial PATH setup at install time.
 
-- Detects current shell: bash, zsh, fish, PowerShell, nushell.
-- Appends `DOTNET_ROOT` and `PATH` exports to the appropriate profile file.
+- Runs as part of the one-shot installer, not as a dsi subcommand.
+- Detects available shells: bash, zsh, fish, PowerShell, nushell.
+- Appends `DOTNET_ROOT` and `PATH` exports to each detected shell's profile file.
+- Uses idempotent marker comments to avoid duplicating entries on re-runs.
 - Detects if a system-level dotnet exists and warns about PATH ordering.
-- Idempotent — does not duplicate entries on repeated runs.
 
 ---
 
@@ -559,24 +588,29 @@ $ dotnet --list-sdks
 | Crate | Purpose |
 |---|---|
 | `clap` | CLI argument parsing and help generation |
-| `reqwest` | HTTP client for API queries and SDK downloads |
+| `reqwest` (rustls-tls) | HTTP client for API queries and SDK downloads |
 | `tokio` | Async runtime for network operations |
-| `serde` + `serde_json` | Parse releases API JSON and global.json |
-| `flate2` + `tar` | Extract `.tar.gz` archives (Linux/macOS) |
-| `zip` | Extract `.zip` archives (Windows) |
-| `sha2` | SHA512 checksum verification |
+| `serde` + `serde_json` | Parse releases API JSON |
+| `flate2` + `tar` | Extract `.tar.gz` archives |
+| `sha2` + `hex` | SHA512 checksum verification |
 | `indicatif` | Progress bars and spinners |
+| `futures-util` | Stream primitives for chunked downloads |
 | `dirs` | Cross-platform home directory detection |
-| `semver` | Version parsing and comparison (adapted for .NET's scheme) |
-| `colored` | Terminal color output |
+| `anyhow` | Ergonomic error handling |
+
+`rustls-tls` is used instead of native OpenSSL so dsi has zero system dependencies.
 
 ---
 
 ## Edge Cases & Considerations
 
+### Minimum supported .NET version
+
+dsi supports installing .NET 6.0 and newer. Older versions require OpenSSL 1.x, which modern Linux distros (Arch, recent Ubuntu, etc.) no longer ship by default. Attempting `dsi install 5.0` produces a clear error explaining this.
+
 ### Muxer version conflicts
 
-When extracting a newer SDK, the `dotnet` muxer binary and `host/fxr/` files get overwritten with the newer version. This is by design — .NET's muxer is backward compatible. A newer muxer can run older SDKs. However, extracting an **older** SDK over a **newer** muxer is safe too — the extraction will not downgrade the muxer because the older tarball's muxer has a lower version, and dsi should skip overwriting the muxer if the existing one is newer.
+When extracting a newer SDK, the `dotnet` muxer binary and `host/fxr/` files get overwritten with the newer version. This is by design — .NET's muxer is backward compatible. A newer muxer can run older SDKs.
 
 ### Partial extraction recovery
 
@@ -588,7 +622,7 @@ Each SDK is roughly 200-400 MB extracted. dsi should show the download size befo
 
 ### Offline usage
 
-`dsi ls` works fully offline (filesystem scan). `dsi ls-remote` and `dsi install` require network access. Cached release index data allows `ls-remote` to work with stale data if the network is unavailable (with a warning).
+`dsi ls` works fully offline (filesystem scan). `dsi ls-remote` and `dsi install` require network access.
 
 ### Permission errors
 

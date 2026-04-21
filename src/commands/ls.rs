@@ -1,31 +1,39 @@
-use crate::paths::DsiPaths;
-use anyhow::Result as AnyResult;
+// src/commands/ls.rs
+//
+// `dsi ls` — List locally installed SDK versions.
+
+use anyhow::Result;
 use clap::Parser;
+
+use crate::paths::DsiPaths;
 
 #[derive(Parser)]
 pub struct LsArgs;
 
-pub async fn run(_args: LsArgs) -> AnyResult<()> {
+pub async fn run(_args: LsArgs) -> Result<()> {
     let paths = DsiPaths::resolve()?;
     let sdks = paths.installed_sdks()?;
 
     if sdks.is_empty() {
         println!();
         println!("  No .NET SDKs installed.");
-        println!("  Run `dsi install --lts to install one.");
+        println!("  Run `dsi install --lts` to install one.");
         println!();
         return Ok(());
     }
+
     println!();
     println!("  Installed SDKs (in {}):", paths.sdk_dir.display());
     println!();
-    println!("  {:<18} {}", "SDK Version", "Channel");
+    println!("  {:<20} {}", "SDK Version", "Channel");
     println!("  {}", "─".repeat(32));
 
     for sdk in &sdks {
         let channel = extract_channel(sdk);
-        println!("  {:<18} {}", sdk, channel);
+        println!("  {:<20} {}", sdk, channel);
     }
+
+    println!();
 
     if paths.has_dotnet() {
         if let Ok(output) = std::process::Command::new(&paths.dotnet_bin)
@@ -35,11 +43,11 @@ pub async fn run(_args: LsArgs) -> AnyResult<()> {
             if output.status.success() {
                 let active = String::from_utf8_lossy(&output.stdout).trim().to_string();
                 println!("  Active SDK: {}", active);
+                println!();
             }
         }
     }
 
-    println!();
     Ok(())
 }
 
