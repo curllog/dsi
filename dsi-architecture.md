@@ -27,10 +27,6 @@ dsi supports Unix-family systems only:
 Native Windows is **not** supported. Windows users should run dsi inside WSL. Rationale:
 
 - .NET developers on native Windows typically use Visual Studio, which manages its own SDK installations.
-- Windows requires a separate archive format (`.zip` instead of `.tar.gz`) and different install paths, doubling the surface area of the tool.
-- Scoping to Unix-family keeps the codebase simple and aligned with the "do one thing well" philosophy.
-
-The crate will fail to compile on non-supported targets via `compile_error!`, producing a clear message rather than a silent/broken binary.
 
 ---
 
