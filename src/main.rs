@@ -16,10 +16,10 @@ struct Cli {
 enum Commands {
     /// Show environment and platform details
     Info,
-    ///List all installed SDKs
 
     /// List available SDK versions from Microsoft's releases API
     Ls(LsArgs),
+    ///List all installed SDKs
     LsRemote(commands::ls_remote::LsRemoteArgs),
 }
 #[tokio::main]
