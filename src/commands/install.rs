@@ -2,7 +2,7 @@ use anyhow::{Result as AnyResult, bail};
 use clap::Parser;
 
 #[derive(Parser)]
-struct InstallArgs {
+pub struct InstallArgs {
     /// Version to install: channel ("9.0") or exact ("9.0.312")
     pub version: Option<String>,
     /// Install the latest LTS version

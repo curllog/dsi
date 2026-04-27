@@ -1,6 +1,7 @@
 use clap::Parser;
 
-use crate::commands::{ls::LsArgs, ls_remote::LsRemoteArgs};
+use crate::commands::install::InstallArgs;
+
 mod api;
 mod commands;
 mod paths;
@@ -18,9 +19,10 @@ enum Commands {
     Info,
 
     /// List available SDK versions from Microsoft's releases API
-    Ls(LsArgs),
+    Ls(commands::ls::LsArgs),
     ///List all installed SDKs
     LsRemote(commands::ls_remote::LsRemoteArgs),
+    Install(commands::install::InstallArgs),
 }
 #[tokio::main]
 async fn main() {
@@ -30,6 +32,7 @@ async fn main() {
 
         Commands::LsRemote(args) => commands::ls_remote::run(args).await,
         Commands::Ls(args) => commands::ls::run(args).await,
+        Commands::Install(args) => commands::install::run(args).await,
     };
 
     if let Err(e) = result {
