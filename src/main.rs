@@ -17,7 +17,6 @@ struct Cli {
 enum Commands {
     /// Show environment and platform details
     Info,
-
     /// List available SDK versions from Microsoft's releases API
     Ls(commands::ls::LsArgs),
     ///List all installed SDKs
