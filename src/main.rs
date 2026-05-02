@@ -21,6 +21,7 @@ enum Commands {
     Ls(commands::ls::LsArgs),
     ///List all installed SDKs
     LsRemote(commands::ls_remote::LsRemoteArgs),
+    // Install Sdk
     Install(commands::install::InstallArgs),
 }
 #[tokio::main]
@@ -28,7 +29,6 @@ async fn main() {
     let cli = Cli::parse();
     let result = match cli.command {
         Commands::Info => commands::info::run(),
-
         Commands::LsRemote(args) => commands::ls_remote::run(args).await,
         Commands::Ls(args) => commands::ls::run(args).await,
         Commands::Install(args) => commands::install::run(args).await,
