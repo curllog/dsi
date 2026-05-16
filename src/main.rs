@@ -1,7 +1,5 @@
 use clap::Parser;
 
-use crate::commands::install::InstallArgs;
-
 mod api;
 mod commands;
 mod paths;
