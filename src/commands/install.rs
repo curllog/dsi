@@ -49,31 +49,9 @@ pub async fn run(args: InstallArgs) -> AnyResult<()> {
     // Step 4: Find the specific SDK to install
     let sdk = pick_sdk(&releases, &target)?;
 
-    // Step 5: Find the download for our platform
-    let platform = Platform::detect();
-    let rid = platform.rid();
-    let file = find_sdk_file_for_rid(&sdk.files, &rid)
-        .with_context(|| format!("No download available for platform {}", rid))?;
-
-    println!("Installing SDK {} for {}", sdk.version, rid);
-
-    // Step 6: Download
+    // Step 5: Download, verify, and extract into ~/.dotnet/
     let paths = DsiPaths::resolve()?;
-    std::fs::create_dir_all(&paths.dotnet_root)
-        .with_context(|| format!("Failed to create {}", paths.dotnet_root.display()))?;
-
-    let archive_filename = format!("dsi-download-{}-{}.tar.gz", sdk.version, rid);
-    let archive_path = paths.dotnet_root.join(&archive_filename);
-    download_file(&client, &file.url, &archive_path).await?;
-
-    // Step 7: Verify checksum
-    verify_sha512(&archive_path, &file.hash)?;
-
-    // Step 8: Extract
-    extract_tarball(&archive_path, &paths.dotnet_root)?;
-
-    // Step 9: Clean up the downloaded archive
-    std::fs::remove_file(&archive_path).ok();
+    fetch_and_install(&client, sdk, &paths).await?;
 
     println!();
     println!(
@@ -81,6 +59,35 @@ pub async fn run(args: InstallArgs) -> AnyResult<()> {
         sdk.version,
         paths.dotnet_root.display()
     );
+    Ok(())
+}
+
+/// Download, verify, and extract a resolved SDK into `~/.dotnet/`.
+///
+/// Shared by `install` and `update`. The caller is responsible for any
+/// "Installed ..." summary line; this only reports per-step progress.
+pub async fn fetch_and_install(client: &ApiClient, sdk: &Sdk, paths: &DsiPaths) -> AnyResult<()> {
+    // Find the download for our platform.
+    let platform = Platform::detect();
+    let rid = platform.rid();
+    let file = find_sdk_file_for_rid(&sdk.files, &rid)
+        .with_context(|| format!("No download available for platform {}", rid))?;
+
+    println!("Installing SDK {} for {}", sdk.version, rid);
+
+    std::fs::create_dir_all(&paths.dotnet_root)
+        .with_context(|| format!("Failed to create {}", paths.dotnet_root.display()))?;
+
+    let archive_filename = format!("dsi-download-{}-{}.tar.gz", sdk.version, rid);
+    let archive_path = paths.dotnet_root.join(&archive_filename);
+    download_file(client, &file.url, &archive_path).await?;
+
+    verify_sha512(&archive_path, &file.hash)?;
+    extract_tarball(&archive_path, &paths.dotnet_root)?;
+
+    // Clean up the downloaded archive.
+    std::fs::remove_file(&archive_path).ok();
+
     Ok(())
 }
 
