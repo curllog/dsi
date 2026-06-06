@@ -17,8 +17,8 @@ pub async fn run(args: LsRemoteArgs) -> AnyResult<()> {
     let index = client.fetch_releases_index().await?;
     println!();
     println!(
-        "  {:<10} {:<44} {:<10} {:<14} {}",
-        "Channel", "Latest SDK", "Type", "Status", r#"EOL Date"#
+        "  {:<10} {:<44} {:<10} {:<14} EOL Date",
+        "Channel", "Latest SDK", "Type", "Status"
     );
     println!("  {}", "─".repeat(100));
 

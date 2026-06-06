@@ -28,3 +28,9 @@ tar = "0.4"
 zip = "8"
 anyhow = "1"
 futures-util = "0.3"
+
+# Optimize release builds for a small, single static binary.
+[profile.release]
+strip = true
+lto = true
+codegen-units = 1

@@ -35,12 +35,14 @@ pub async fn run(args: SelfUninstallArgs) -> AnyResult<()> {
         }
     }
 
-    std::fs::remove_file(&exe)
-        .with_context(|| format!("Failed to remove {}", exe.display()))?;
+    std::fs::remove_file(&exe).with_context(|| format!("Failed to remove {}", exe.display()))?;
 
     // Sanity check: removal can silently fail on some filesystems.
     if exe.exists() {
-        bail!("dsi binary still present at {} after removal", exe.display());
+        bail!(
+            "dsi binary still present at {} after removal",
+            exe.display()
+        );
     }
 
     println!("✓ Removed dsi");

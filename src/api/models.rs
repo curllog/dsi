@@ -1,8 +1,12 @@
 use serde::Deserialize;
 pub const MIN_SUPPORTED_MAJOR_VERSION: u32 = 6;
 
+// These structs mirror the full shape of Microsoft's releases metadata. Some
+// fields are deserialized for fidelity but not read yet, so dead_code is allowed.
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "kebab-case")]
+#[allow(dead_code)]
 pub struct ChannelReleases {
     pub channel_version: String,
     pub latest_release: String,
@@ -13,6 +17,7 @@ pub struct ChannelReleases {
 /// A single release in the channel.
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "kebab-case")]
+#[allow(dead_code)]
 pub struct Release {
     pub release_date: String,
     pub release_version: String,
@@ -29,6 +34,7 @@ pub struct Sdk {
 
 /// A downloadable SDK file for a specific platform.
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct SdkFile {
     pub name: String,
     pub rid: String,
@@ -44,6 +50,7 @@ pub struct ReleasesIndex {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "kebab-case")]
+#[allow(dead_code)]
 pub struct Channel {
     /// Channel version: "9.0", "10.0"
     pub channel_version: String,

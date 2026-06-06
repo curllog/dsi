@@ -25,15 +25,40 @@ this file tracks what's actually built so far.
 | `dsi update` | ✅ done | Groups installed SDKs by channel, finds the channel's latest SDK, installs it if newer than the highest installed patch. Confirms (`[Y/n]`) unless `--yes`/`-y`. Reuses `install::fetch_and_install`. |
 | `dsi uninstall <ver>` | ✅ done | Removes `~/.dotnet/sdk/<version>/`. Confirms before deleting unless `--yes`/`-y`. Leaves shared runtimes in place. |
 | `dsi prune` | ✅ done | Groups SDKs by feature band (e.g. 9.0.1xx), keeps the latest patch per band, removes the rest. Reports freed space. Supports `--dry-run` and `--yes`/`-y`. |
-| `dsi selfupdate` | 🟡 stub | Deliberate stub: bails with "not implemented yet". Release/asset convention is still undecided and must be settled with the release CI + `install.sh`. See order note below. |
+| `dsi selfupdate` | 🟡 stub | Deliberate stub: bails with "not implemented yet". Asset convention is now decided (see "Release & distribution convention" below); the code is still a stub pending implementation. |
 | `dsi selfuninstall` | ✅ done | Removes the running binary (`std::env::current_exe()`), leaves `~/.dotnet/` SDKs intact. Confirms (`[y/N]`) unless `--yes`/`-y`. |
+
+## Release & distribution convention (decided)
+
+Settled together with the release CI (`.github/workflows/release.yml`). `install.sh`
+and `dsi selfupdate` MUST follow this exact convention.
+
+- **Host:** GitHub Releases on `curllog/dsi`.
+- **Trigger:** pushing a `vX.Y.Z` tag. CI guards that the tag matches the
+  `Cargo.toml` version before publishing.
+- **Asset name:** `dsi-{rid}.tar.gz`, where `{rid}` is exactly what
+  `Platform::rid()` emits (`src/platform.rs`). The tarball contains a single
+  `dsi` binary at its root. So `selfupdate` can find its own asset with
+  `format!("dsi-{}.tar.gz", platform.rid())`.
+- **Checksum:** each archive ships a sibling `dsi-{rid}.tar.gz.sha256`.
+- **Targets built (Core 6):** `linux-x64`, `linux-arm64`, `linux-musl-x64`,
+  `linux-musl-arm64`, `osx-x64`, `osx-arm64`. (32-bit arm/x86 RIDs that
+  `Platform::rid()` can emit are not yet built.)
+
+## CI/CD
+
+| Workflow | Status | Notes |
+|---|---|---|
+| `.github/workflows/ci.yml` | ✅ done | On push to `main` + PRs: `cargo fmt --check`, `clippy -D warnings`, build, test. |
+| `.github/workflows/release.yml` | ✅ done | On `v*` tag: verify-version guard → 6-target matrix (Linux via `cross`, macOS native) → publish `dsi-{rid}.tar.gz` + `.sha256` to the Release. |
 
 ## Out-of-tree work pending
 
 - **`install.sh`** — the one-shot installer that downloads the dsi binary and
   configures PATH. Should detect bash, zsh, fish, PowerShell, nushell, and add
   marker-fenced PATH exports to each profile. PATH configuration was deliberately
-  kept out of `dsi install` and centralized here.
+  kept out of `dsi install` and centralized here. Downloads
+  `dsi-{rid}.tar.gz` per the convention above and verifies the `.sha256`.
 
 ## File layout
 
@@ -134,12 +159,11 @@ tar             — tar archives
 3. **`prune`** — pure filesystem + version-string logic. Group by feature band
    (parse `x.y.zNN` where NN identifies the band), keep the latest patch per
    band, delete the rest.
-4. **`selfupdate`** — DEFERRED (stub bails for now). Release host is known
-   (GitHub `curllog/dsi`), but the asset convention — raw `dsi-{rid}` binary vs
-   `dsi-{rid}.tar.gz`, tag format, atomic-replace path — is intentionally left
-   undecided until the release CI and `install.sh` are designed, so all three
-   stay consistent. `SelfUpdateArgs` already carries a `--yes`/`-y` flag for the
-   eventual implementation.
+4. **`selfupdate`** — DEFERRED (stub bails for now). The asset convention is now
+   decided (see "Release & distribution convention" above): download
+   `dsi-{rid}.tar.gz` from the latest `curllog/dsi` release, verify its
+   `.sha256`, extract, and atomically replace `current_exe()`. `SelfUpdateArgs`
+   already carries a `--yes`/`-y` flag for the eventual implementation.
 5. **`selfuninstall`** — DONE. Deletes the running binary via
    `std::env::current_exe()`, leaves SDKs alone.
 

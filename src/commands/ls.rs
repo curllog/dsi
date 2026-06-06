@@ -25,7 +25,7 @@ pub async fn run(_args: LsArgs) -> Result<()> {
     println!();
     println!("  Installed SDKs (in {}):", paths.sdk_dir.display());
     println!();
-    println!("  {:<20} {}", "SDK Version", "Channel");
+    println!("  {:<20} Channel", "SDK Version");
     println!("  {}", "─".repeat(32));
 
     for sdk in &sdks {
@@ -35,17 +35,15 @@ pub async fn run(_args: LsArgs) -> Result<()> {
 
     println!();
 
-    if paths.has_dotnet() {
-        if let Ok(output) = std::process::Command::new(&paths.dotnet_bin)
+    if paths.has_dotnet()
+        && let Ok(output) = std::process::Command::new(&paths.dotnet_bin)
             .arg("--version")
             .output()
-        {
-            if output.status.success() {
-                let active = String::from_utf8_lossy(&output.stdout).trim().to_string();
-                println!("  Active SDK: {}", active);
-                println!();
-            }
-        }
+        && output.status.success()
+    {
+        let active = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        println!("  Active SDK: {}", active);
+        println!();
     }
 
     Ok(())

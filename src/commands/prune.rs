@@ -36,7 +36,10 @@ pub async fn run(args: PruneArgs) -> AnyResult<()> {
     // Group versions by feature band, keeping the latest patch per band.
     let mut bands: BTreeMap<String, Vec<String>> = BTreeMap::new();
     for version in &installed {
-        bands.entry(feature_band(version)).or_default().push(version.clone());
+        bands
+            .entry(feature_band(version))
+            .or_default()
+            .push(version.clone());
     }
 
     let mut to_keep: Vec<String> = Vec::new();
@@ -55,8 +58,8 @@ pub async fn run(args: PruneArgs) -> AnyResult<()> {
         }
     }
 
-    to_keep.sort_by(|a, b| version_key(a).cmp(&version_key(b)));
-    to_remove.sort_by(|a, b| version_key(a).cmp(&version_key(b)));
+    to_keep.sort_by_key(|a| version_key(a));
+    to_remove.sort_by_key(|a| version_key(a));
 
     if to_remove.is_empty() {
         println!();
@@ -65,7 +68,11 @@ pub async fn run(args: PruneArgs) -> AnyResult<()> {
         return Ok(());
     }
 
-    let verb = if args.dry_run { "Would remove" } else { "Will remove" };
+    let verb = if args.dry_run {
+        "Would remove"
+    } else {
+        "Will remove"
+    };
     println!();
     println!("{}:", verb);
     for v in &to_remove {

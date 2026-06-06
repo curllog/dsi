@@ -147,10 +147,10 @@ fn detect_wsl() -> WslStatus {
     }
 
     // Method 2: fallback — check /proc/version even without env var
-    if let Ok(version) = std::fs::read_to_string("/proc/version") {
-        if version.to_lowercase().contains("microsoft") == true {
-            return WslStatus::Wsl2;
-        }
+    if let Ok(version) = std::fs::read_to_string("/proc/version")
+        && version.to_lowercase().contains("microsoft")
+    {
+        return WslStatus::Wsl2;
     }
 
     WslStatus::None
