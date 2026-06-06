@@ -27,8 +27,17 @@ Once the files are on disk, the regular `dotnet` host takes over exactly as it n
 
 ## Installation
 
-> Coming soon — a one-line installer that downloads `dsi` and sets up your PATH.
-> _(This section will be filled in later.)_
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/curllog/dsi/main/install.sh | sh
+```
+
+This installs `dsi` to `~/.local/bin/dsi` and adds `dsi` + `~/.dotnet` to your PATH
+for every shell it detects (bash, zsh, fish, PowerShell, nushell). **Restart your
+shell** (or `source` your profile) afterwards so the `dsi` command is available.
+
+
+Supported platforms: Linux (glibc & musl) and macOS, on x64 and arm64. WSL is treated as Linux.
 
 ## Commands
 
@@ -74,7 +83,6 @@ dsi selfupdate      # update dsi to the latest release (coming soon)
 dsi selfuninstall   # remove the dsi binary (your installed SDKs stay)
 ```
 
-## Good to know
+## IMPORTANT
 
 - The minimum installable version is **.NET 6.0**.
-- Run `dsi <command> --help` at any time to see all the options for a command.
