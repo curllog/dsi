@@ -79,7 +79,7 @@ dsi prune --dry-run     # preview what prune would remove, without deleting
 ### Manage dsi itself
 
 ```sh
-dsi selfupdate      # update dsi to the latest release (coming soon)
+dsi selfupdate      # update dsi to the latest release
 dsi selfuninstall   # remove the dsi binary (your installed SDKs stay)
 ```
 

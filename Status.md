@@ -25,7 +25,7 @@ this file tracks what's actually built so far.
 | `dsi update` | ✅ done | Groups installed SDKs by channel, finds the channel's latest SDK, installs it if newer than the highest installed patch. Confirms (`[Y/n]`) unless `--yes`/`-y`. Reuses `install::fetch_and_install`. |
 | `dsi uninstall <ver>` | ✅ done | Removes `~/.dotnet/sdk/<version>/`. Confirms before deleting unless `--yes`/`-y`. Leaves shared runtimes in place. |
 | `dsi prune` | ✅ done | Groups SDKs by feature band (e.g. 9.0.1xx), keeps the latest patch per band, removes the rest. Reports freed space. Supports `--dry-run` and `--yes`/`-y`. |
-| `dsi selfupdate` | 🟡 stub | Deliberate stub: bails with "not implemented yet". Asset convention is now decided (see "Release & distribution convention" below); the code is still a stub pending implementation. |
+| `dsi selfupdate` | ✅ done | Queries the latest `curllog/dsi` release, compares versions, downloads `dsi-{rid}.tar.gz`, verifies its SHA-256, and atomically replaces the running binary (stage-in-same-dir + `rename`). Confirms (`[Y/n]`) unless `--yes`/`-y`. |
 | `dsi selfuninstall` | ✅ done | Removes the running binary (`std::env::current_exe()`), leaves `~/.dotnet/` SDKs intact. Confirms (`[y/N]`) unless `--yes`/`-y`. |
 
 ## Release & distribution convention (decided)
@@ -52,13 +52,14 @@ and `dsi selfupdate` MUST follow this exact convention.
 | `.github/workflows/ci.yml` | ✅ done | On push to `main` + PRs: `cargo fmt --check`, `clippy -D warnings`, build, test. |
 | `.github/workflows/release.yml` | ✅ done | On `v*` tag: verify-version guard → 6-target matrix (Linux via `cross`, macOS native) → publish `dsi-{rid}.tar.gz` + `.sha256` to the Release. |
 
-## Out-of-tree work pending
+## Out-of-tree work
 
-- **`install.sh`** — the one-shot installer that downloads the dsi binary and
-  configures PATH. Should detect bash, zsh, fish, PowerShell, nushell, and add
-  marker-fenced PATH exports to each profile. PATH configuration was deliberately
-  kept out of `dsi install` and centralized here. Downloads
-  `dsi-{rid}.tar.gz` per the convention above and verifies the `.sha256`.
+- **`install.sh`** — ✅ done. The one-shot installer (`curl … | sh`): detects the
+  platform RID (mirrors `Platform::rid()` incl. musl detection), resolves the
+  latest release, downloads `dsi-{rid}.tar.gz`, verifies its `.sha256`, installs
+  to `~/.local/bin/dsi`, and writes idempotent marker-fenced PATH/`DOTNET_ROOT`
+  blocks for bash, zsh, fish, PowerShell, and nushell. PATH configuration was
+  deliberately kept out of `dsi install` and centralized here.
 
 ## File layout
 
@@ -92,7 +93,7 @@ dsi/
         ├── update.rs               # ✅ done
         ├── uninstall.rs            # ✅ done
         ├── prune.rs                # ✅ done
-        ├── selfupdate.rs           # 🟡 deliberate stub (release convention undecided)
+        ├── selfupdate.rs           # ✅ done
         └── selfuninstall.rs        # ✅ done
 ```
 
@@ -159,12 +160,11 @@ tar             — tar archives
 3. **`prune`** — pure filesystem + version-string logic. Group by feature band
    (parse `x.y.zNN` where NN identifies the band), keep the latest patch per
    band, delete the rest.
-4. **`selfupdate`** — DEFERRED (stub bails for now). The asset convention is now
-   decided (see "Release & distribution convention" above): download
-   `dsi-{rid}.tar.gz` from the latest `curllog/dsi` release, verify its
-   `.sha256`, extract, and atomically replace `current_exe()`. `SelfUpdateArgs`
-   already carries a `--yes`/`-y` flag for the eventual implementation.
+4. **`selfupdate`** — DONE. Downloads `dsi-{rid}.tar.gz` from the latest
+   `curllog/dsi` release, verifies its `.sha256`, extracts, and atomically
+   replaces `current_exe()` (stage in the exe's dir, then `rename`). Confirms
+   unless `--yes`/`-y`.
 5. **`selfuninstall`** — DONE. Deletes the running binary via
    `std::env::current_exe()`, leaves SDKs alone.
 
-Independent of these: write `install.sh`. Can be done at any point.
+Independent of these: `install.sh` — DONE (see "Out-of-tree work" above).
