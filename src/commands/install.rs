@@ -171,7 +171,7 @@ fn extract_channel_version(version: &str) -> String {
     if parts.len() >= 2 {
         format!("{}.{}", parts[0], parts[1])
     } else {
-        version.to_string()
+        format!("{}.{}", parts[0], "0")
     }
 }
 
