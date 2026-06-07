@@ -4,6 +4,19 @@ A fast, simple command-line tool for installing and managing **.NET SDK** versio
 
 Everything installs into your home folder (`~/.dotnet/`), so you never need `sudo`.
 
+## Table of Contents
+
+- [Why dsi?](#why-dsi)
+- [How it works (and what it does *not* touch)](#how-it-works-and-what-it-does-not-touch)
+- [Installation](#installation)
+- [Commands](#commands)
+  - [See what's available](#see-whats-available)
+  - [Install an SDK](#install-an-sdk)
+  - [Keep things up to date](#keep-things-up-to-date)
+  - [Clean up](#clean-up)
+  - [Manage dsi itself](#manage-dsi-itself)
+- [IMPORTANT](#important)
+
 ## Why dsi?
 
 Installing the .NET SDK on Unix-like systems is surprisingly fiddly. There isn't one clean way to do it — you end up choosing between:
