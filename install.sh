@@ -178,6 +178,32 @@ configure_path() {
   [ "$configured" -eq 1 ] || warn "no known shell profiles found; add $DSI_BIN_DIR and $DOTNET_ROOT to your PATH manually"
 }
 
+# Print the reload command for the user's current shell.
+# Detects the shell from $SHELL and emits the matching source/reload line.
+reload_hint() {
+  shell_name="$(basename "${SHELL:-}")"
+
+  case "$shell_name" in
+    bash)
+      printf 'source ~/.bashrc' ;;
+    zsh)
+      if [ -n "${ZDOTDIR:-}" ]; then
+        printf 'source "%s/.zshrc"' "$ZDOTDIR"
+      else
+        printf 'source ~/.zshrc'
+      fi ;;
+    fish)
+      printf 'source ~/.config/fish/config.fish' ;;
+    pwsh|powershell)
+      printf '. $PROFILE' ;;
+    nu)
+      printf 'source ~/.config/nushell/config.nu' ;;
+    *)
+      # Unknown shell — fall back to a generic instruction.
+      printf '' ;;
+  esac
+}
+
 # Warn if a system dotnet would shadow the user-level one.
 warn_system_dotnet() {
   if command -v dotnet >/dev/null 2>&1; then
@@ -233,7 +259,13 @@ main() {
 
   printf '\n%s✓ dsi %s installed%s\n' "$C_GREEN" "$tag" "$C_RESET"
   "$DSI_BIN_DIR/dsi" --version 2>/dev/null || true
-  printf '\nRestart your shell (or source your profile) so dsi is on PATH, then:\n  dsi install --lts\n'
+
+  reload="$(reload_hint)"
+  if [ -n "$reload" ]; then
+    printf '\nReload your shell so dsi is on PATH:\n  %s\n\nThen:\n  dsi install --lts\n' "$reload"
+  else
+    printf '\nRestart your shell (or source your profile) so dsi is on PATH, then:\n  dsi install --lts\n'
+  fi
 }
 
 main
