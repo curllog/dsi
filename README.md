@@ -4,6 +4,8 @@ A fast, simple command-line tool for installing and managing **.NET SDK** versio
 
 Everything installs into your home folder (`~/.dotnet/`), so you never need `sudo`.
 
+![dsi demonstration](./dsi.gif) 
+
 ## Table of Contents
 
 - [Why dsi?](#why-dsi)
