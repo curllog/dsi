@@ -72,7 +72,10 @@ fn profile_files(home: &Path) -> Vec<(PathBuf, ProfileStyle)> {
             home.join(".config/powershell/Microsoft.PowerShell_profile.ps1"),
             ProfileStyle::Powershell,
         ),
-        (home.join(".config/nushell/config.nu"), ProfileStyle::Nushell),
+        (
+            home.join(".config/nushell/config.nu"),
+            ProfileStyle::Nushell,
+        ),
     ]
 }
 
