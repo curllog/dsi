@@ -5,9 +5,11 @@ edition = "2024"
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
-reqwest = { version = "0.12", features = [
+clap_complete = "4"
+reqwest = { version = "0.13", features = [
   "json",
-  "rustls-tls",
+  "rustls",
+  "webpki-roots",
   "stream",
 ], default-features = false }
 tokio = { version = "1", features = [

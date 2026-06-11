@@ -110,8 +110,10 @@ resolve_tag() {
 
 # ─── PATH / env configuration ─────────────────────────────────────────────
 # apply_block <profile-file> <style>
-# style: posix | fish | powershell | nushell
+# style: bash | zsh | fish | powershell | nushell
 # Idempotent: removes any prior dsi block, then appends a fresh one.
+# Completion lines are guarded so they silently no-op if the installed dsi
+# predates the `completions` subcommand.
 apply_block() {
   file="$1"; style="$2"
   dir="$(dirname "$file")"
@@ -133,17 +135,26 @@ apply_block() {
   {
     printf '%s\n' "$MARKER_BEGIN"
     case "$style" in
-      posix)
+      bash)
         printf 'export DOTNET_ROOT="%s"\n' "$DOTNET_ROOT"
         printf 'export PATH="%s:%s/tools:%s:$PATH"\n' "$DOTNET_ROOT" "$DOTNET_ROOT" "$DSI_BIN_DIR"
+        printf 'command -v dsi >/dev/null 2>&1 && eval "$(dsi completions bash 2>/dev/null)"\n'
+        ;;
+      zsh)
+        printf 'export DOTNET_ROOT="%s"\n' "$DOTNET_ROOT"
+        printf 'export PATH="%s:%s/tools:%s:$PATH"\n' "$DOTNET_ROOT" "$DOTNET_ROOT" "$DSI_BIN_DIR"
+        # zsh completions need compinit (compdef) to be loaded first.
+        printf 'command -v dsi >/dev/null 2>&1 && command -v compdef >/dev/null 2>&1 && eval "$(dsi completions zsh 2>/dev/null)"\n'
         ;;
       fish)
         printf 'set -gx DOTNET_ROOT "%s"\n' "$DOTNET_ROOT"
         printf 'fish_add_path "%s" "%s/tools" "%s"\n' "$DOTNET_ROOT" "$DOTNET_ROOT" "$DSI_BIN_DIR"
+        printf 'command -q dsi; and dsi completions fish 2>/dev/null | source\n'
         ;;
       powershell)
         printf '$env:DOTNET_ROOT = "%s"\n' "$DOTNET_ROOT"
         printf '$env:PATH = "%s:%s/tools:%s:$env:PATH"\n' "$DOTNET_ROOT" "$DOTNET_ROOT" "$DSI_BIN_DIR"
+        printf 'if (Get-Command dsi -ErrorAction SilentlyContinue) { dsi completions powershell 2>$null | Out-String | Invoke-Expression }\n'
         ;;
       nushell)
         printf '$env.DOTNET_ROOT = "%s"\n' "$DOTNET_ROOT"
@@ -160,10 +171,10 @@ configure_path() {
   configured=0
 
   if command -v bash >/dev/null 2>&1 || [ -f "$HOME/.bashrc" ]; then
-    apply_block "$HOME/.bashrc" posix; configured=1
+    apply_block "$HOME/.bashrc" bash; configured=1
   fi
   if command -v zsh >/dev/null 2>&1 || [ -f "${ZDOTDIR:-$HOME}/.zshrc" ]; then
-    apply_block "${ZDOTDIR:-$HOME}/.zshrc" posix; configured=1
+    apply_block "${ZDOTDIR:-$HOME}/.zshrc" zsh; configured=1
   fi
   if command -v fish >/dev/null 2>&1 || [ -f "$HOME/.config/fish/config.fish" ]; then
     apply_block "$HOME/.config/fish/config.fish" fish; configured=1

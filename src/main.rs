@@ -32,6 +32,8 @@ enum Commands {
     Selfupdate(commands::selfupdate::SelfUpdateArgs),
     /// Remove the dsi binary, leaving installed SDKs intact
     Selfuninstall(commands::selfuninstall::SelfUninstallArgs),
+    /// Generate shell completion scripts (bash, zsh, fish, powershell, elvish)
+    Completions(commands::completions::CompletionsArgs),
 }
 #[tokio::main]
 async fn main() {
@@ -46,6 +48,7 @@ async fn main() {
         Commands::Prune(args) => commands::prune::run(args).await,
         Commands::Selfupdate(args) => commands::selfupdate::run(args).await,
         Commands::Selfuninstall(args) => commands::selfuninstall::run(args).await,
+        Commands::Completions(args) => commands::completions::run::<Cli>(args),
     };
 
     if let Err(e) = result {
