@@ -81,8 +81,10 @@ impl Channel {
     pub fn is_lts(&self) -> bool {
         self.release_type == "lts"
     }
+    /// Released and still serviced — excludes both EOL and preview channels,
+    /// so `--lts`/`--latest` never resolve to a pre-release SDK.
     pub fn is_supported(&self) -> bool {
-        self.support_phase != "eol"
+        matches!(self.support_phase.as_str(), "active" | "maintenance")
     }
     pub fn major_version(&self) -> u32 {
         self.channel_version

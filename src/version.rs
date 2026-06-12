@@ -2,22 +2,40 @@
 //
 // Helpers for comparing and grouping .NET SDK version strings.
 
+/// One dot-separated identifier of a pre-release suffix.
+///
+/// Per semver, numeric identifiers compare numerically and sort below
+/// alphanumeric ones (`Num` before `Str` in declaration order).
+#[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
+pub enum PreSegment {
+    Num(u64),
+    Str(String),
+}
+
 /// A comparable key for an SDK version.
 ///
-/// Splits the numeric "major.minor.patch" portion into integers; any
-/// pre-release suffix ("-preview.3") is dropped and the version flagged as
-/// non-stable so that, for equal numeric parts, a stable release sorts above
-/// its pre-releases (`true > false`).
-pub fn version_key(version: &str) -> (Vec<u32>, bool) {
-    let (numeric, is_stable) = match version.split_once('-') {
-        Some((head, _)) => (head, false),
-        None => (version, true),
+/// Splits the numeric "major.minor.patch" portion into integers and flags the
+/// version as stable or not, so that, for equal numeric parts, a stable
+/// release sorts above its pre-releases (`true > false`). Among pre-releases
+/// the suffix identifiers break the tie, so "-preview.5" > "-preview.4".
+pub fn version_key(version: &str) -> (Vec<u32>, bool, Vec<PreSegment>) {
+    let (numeric, is_stable, pre) = match version.split_once('-') {
+        Some((head, tail)) => (head, false, tail),
+        None => (version, true, ""),
     };
     let parts = numeric
         .split('.')
         .map(|p| p.parse::<u32>().unwrap_or(0))
         .collect();
-    (parts, is_stable)
+    let pre_parts = pre
+        .split('.')
+        .filter(|s| !s.is_empty())
+        .map(|s| match s.parse::<u64>() {
+            Ok(n) => PreSegment::Num(n),
+            Err(_) => PreSegment::Str(s.to_string()),
+        })
+        .collect();
+    (parts, is_stable, pre_parts)
 }
 
 /// The "major.minor" channel of a full version string.
@@ -50,4 +68,31 @@ pub fn feature_band(version: &str) -> String {
         return format!("{}.{}.{}xx", parts[0], parts[1], patch / 100);
     }
     version.to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn stable_sorts_above_its_prereleases() {
+        assert!(version_key("11.0.100") > version_key("11.0.100-rc.1.26450.107"));
+    }
+
+    #[test]
+    fn later_preview_sorts_above_earlier_preview() {
+        assert!(
+            version_key("11.0.100-preview.5.26302.115")
+                > version_key("11.0.100-preview.4.26230.115")
+        );
+        assert!(
+            version_key("11.0.100-rc.1.26450.107") > version_key("11.0.100-preview.5.26302.115")
+        );
+    }
+
+    #[test]
+    fn numeric_patch_comparison_still_wins() {
+        assert!(version_key("10.0.301") > version_key("10.0.300"));
+        assert!(version_key("10.0.300") > version_key("9.0.315"));
+    }
 }

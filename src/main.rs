@@ -24,7 +24,7 @@ enum Commands {
     Install(commands::install::InstallArgs),
     /// Remove a specific installed SDK version
     Uninstall(commands::uninstall::UninstallArgs),
-    /// Update installed SDKs to the latest patch in their channel
+    /// Update installed SDKs to the latest patch in their channel, replacing the old patch
     Update(commands::update::UpdateArgs),
     /// Remove outdated patches, keeping the latest per feature band
     Prune(commands::prune::PruneArgs),

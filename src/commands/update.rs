@@ -1,6 +1,7 @@
 // src/commands/update.rs
 //
-// `dsi update` — Update installed SDKs to the latest patch in their channel.
+// `dsi update` — Update installed SDKs to the latest patch in their channel,
+// removing the patch each update supersedes.
 
 use std::collections::BTreeMap;
 
@@ -114,7 +115,24 @@ pub async fn run(args: UpdateArgs) -> AnyResult<()> {
             .with_context(|| format!("SDK {} not found in channel releases", plan.to))?;
 
         fetch_and_install(&client, sdk, &paths).await?;
-        println!("✓ Updated {} → {}", plan.from, plan.to);
+
+        // Remove the patch this update superseded so old versions don't
+        // accumulate. Shared runtimes are left in place; failure to remove
+        // is non-fatal since the new SDK is already installed.
+        let old_dir = paths.sdk_dir.join(&plan.from);
+        match std::fs::remove_dir_all(&old_dir) {
+            Ok(()) => println!(
+                "✓ Updated {} → {} (removed {})",
+                plan.from, plan.to, plan.from
+            ),
+            Err(e) => {
+                println!("✓ Updated {} → {}", plan.from, plan.to);
+                eprintln!(
+                    "warning: could not remove old SDK {}: {} — run `dsi prune` to clean up",
+                    plan.from, e
+                );
+            }
+        }
     }
 
     Ok(())
